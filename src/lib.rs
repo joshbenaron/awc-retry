@@ -19,7 +19,7 @@ pub struct Retry(Inner);
 struct Inner {
     /// Number of retries. So each request will be tried [max_retries + 1] times
     max_retries: u8,
-    policies: Vec<RetryPolicy>
+    policies: Vec<RetryPolicy>,
 }
 
 impl Inner {
@@ -41,23 +41,54 @@ impl Retry {
     pub fn new(retries: u8) -> Self {
         Retry(Inner {
             max_retries: retries,
-            policies: vec![]
+            policies: vec![],
         })
     }
 
+    /// Allows you to add a retry policy to the [`policies`]
+    /// It allows two types of policy:
+    ///  - `Vec<StatusCode>` and will retry if one of them is received
+    ///  - `Fn(&ResponseHead) -> bool` and will retry when this function resolves to false
+    ///
+    /// # example
+    ///
+    ///```
+    /// use awc_retry::Retry;
+    /// use actix_http::http::StatusCode;
+    /// use actix_web::dev::ResponseHead;
+    ///
+    /// // Creates a policy which will try each request a max of 5 times if any policies resolve to true
+    /// // i.e.
+    /// // if you receive a 401 or 501 status code
+    /// // or
+    /// // the response doesn't have a [`SOME_HEADER`] header
+    /// let policy = Retry::new(5)
+    ///     .policy(vec![StatusCode::INTERNAL_SERVER_ERROR, StatusCode::UNAUTHORIZED])
+    ///     .policy(|head: &ResponseHead| {
+    ///         return if head.headers().contains_key("SOME_HEADER") {
+    ///             true
+    ///         } else {
+    ///             false
+    ///         }
+    ///     });
+    ///
+    /// // Creates awc client
+    /// let client = awc::Client::builder()
+    ///     .wrap(Retry::new(5))
+    ///     .finish();
+    ///```
     pub fn policy<T>(mut self, p: T) -> Self
         where T: IntoRetryPolicy
     {
         self.0.policies.push(p.into_policy());
         self
     }
-
 }
 
 #[non_exhaustive]
 pub enum RetryPolicy {
     Status(Vec<StatusCode>),
-    Custom(Box<dyn Fn(&ResponseHead) -> bool>)
+    Custom(Box<dyn Fn(&ResponseHead) -> bool>),
 }
 
 pub trait IntoRetryPolicy {
@@ -80,7 +111,7 @@ impl IntoRetryPolicy for Vec<StatusCode> {
 
 impl<S> Transform<S, ConnectRequest> for Retry
     where
-        S: Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError> + 'static,
+        S: Service<ConnectRequest, Response=ConnectResponse, Error=SendRequestError> + 'static,
 {
     type Transform = RetryService<S>;
 
@@ -99,7 +130,7 @@ pub struct RetryService<S> {
 
 impl<S> Service<ConnectRequest> for RetryService<S>
     where
-        S: Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError> + 'static,
+        S: Service<ConnectRequest, Response=ConnectResponse, Error=SendRequestError> + 'static,
 {
     type Response = S::Response;
     type Error = S::Error;
@@ -131,11 +162,11 @@ impl<S> Service<ConnectRequest> for RetryService<S>
                                             ConnectResponse::Client(ref r) => {
                                                 // TODO: Need to work out how to get the ResponseHead
                                                 if inner.is_valid_response(&ResponseHead::new(StatusCode::OK)) {
-                                                    return Ok(res)
+                                                    return Ok(res);
                                                 } else {
                                                     tries += 1;
                                                 }
-                                            },
+                                            }
                                             ConnectResponse::Tunnel(ref head, _) => {
                                                 if inner.is_valid_response(head) {
                                                     tries += 1;
@@ -145,8 +176,8 @@ impl<S> Service<ConnectRequest> for RetryService<S>
                                             }
                                         };
 
-                                        return Ok(res)
-                                    },
+                                        return Ok(res);
+                                    }
                                     // SendRequestError
                                     Err(e) => {
                                         if tries == inner.max_retries {
@@ -157,7 +188,7 @@ impl<S> Service<ConnectRequest> for RetryService<S>
                                     }
                                 }
                             }
-                        },
+                        }
                         Body::Empty => {
                             loop {
                                 let h = clone_request_head_type(&head);
@@ -175,7 +206,7 @@ impl<S> Service<ConnectRequest> for RetryService<S>
                                     }
                                 }
                             }
-                        },
+                        }
                         _ => {
                             loop {
                                 let h = clone_request_head_type(&head);
@@ -184,8 +215,8 @@ impl<S> Service<ConnectRequest> for RetryService<S>
                                 {
                                     Ok(res) => {
                                         /// This is [ConnectResponse]
-                                        return Ok(res)
-                                    },
+                                        return Ok(res);
+                                    }
                                     Err(e) => {
                                         if tries == inner.max_retries {
                                             return Err(e);
@@ -196,8 +227,6 @@ impl<S> Service<ConnectRequest> for RetryService<S>
                                 }
                             }
                         }
-
-
                     }
                 }
                 ConnectRequest::Tunnel(head, addr) => {
@@ -223,7 +252,7 @@ fn clone_request_head_type(head_type: &RequestHeadType) -> RequestHeadType {
             inner_head.headers = h.headers.clone();
 
             RequestHeadType::Owned(inner_head)
-        },
+        }
         RequestHeadType::Rc(h, header_map) => {
             RequestHeadType::Rc(h.clone(), header_map.clone())
         }
