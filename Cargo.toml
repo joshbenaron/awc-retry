@@ -1,0 +1,17 @@
+[package]
+name = "awc-retry"
+version = "0.1.0"
+authors = ["joshbenaron <73971531+joshbenaron@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.0.0-beta.4"
+futures = "0.3.13"
+actix-service = "2.0.0-beta.5"
+awc = { version = "3.0.0-beta.3", features = [ "rustls" ] }
+rustls = "0.19.0"
+actix-tls = "=3.0.0-beta.4"
+bytes = "1.0.1"
+actix-http = "3.0.0-beta.4"
